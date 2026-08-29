@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}服务监控 - PDF 翻译{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>服务监控 <span class="muted" style="font-weight:400">（只读，每 2 秒自动刷新，不影响翻译任务）</span></h1>
+  <div id="meta" class="muted">加载中…</div>
+
+  <h2>活动任务</h2>
+  <div id="active">加载中…</div>
+
+  <h2>怎么看有没有卡住</h2>
+  <ul style="font-size:13px;color:#4a5a6a;line-height:1.8">
+    <li><b>「最后活动」持续增长且超过 60 秒</b> → 引擎可能卡住（API 无响应/重试中），可尝试取消重试</li>
+    <li><b>「块号」在推进、最后活动在几秒内</b> → 正常。大文档块数上万时百分比变化很慢，以块号为准</li>
+    <li>翻译速度取决于模型响应速度和 QPS 限流；数千块的手册耗时以小时计属正常</li>
+  </ul>
+</div>
+<script>
+function fmt(s) {
+  s = Math.max(0, Math.round(s));
+  if (s < 90) return s + "秒";
+  const m = Math.floor(s / 60);
+  if (m < 90) return m + "分" + String(s % 60).padStart(2, "0") + "秒";
+  return (m / 60).toFixed(1) + "小时";
+}
+async function poll() {
+  try {
+    const r = await fetch("/api/status");
+    const j = await r.json();
+    const h = Math.floor(j.uptime / 3600), m = Math.floor(j.uptime % 3600 / 60);
+    document.getElementById("meta").textContent =
+      `服务已运行 ${h}小时${m}分 · 等待队列 ${j.queue_size} 个任务`;
+    const box = document.getElementById("active");
+    if (!j.active_tasks.length) {
+      box.innerHTML = '<p class="muted">当前没有进行中的任务。</p>';
+    } else {
+      box.innerHTML = "<table><tr><th>任务</th><th>状态</th><th>进度</th><th>已用</th><th>预计剩余</th><th>速度</th><th>最后活动</th><th>当前状态</th></tr>" +
+        j.active_tasks.map(t => {
+          const warn = t.last_event_ago != null && t.last_event_ago > 60;
+          const ago = t.last_event_ago != null ? `${fmt(t.last_event_ago)}前${warn ? " ⚠" : ""}` : "—";
+          return `<tr>
+            <td><a href="/tasks/${t.task_id}">${t.task_id}</a></td>
+            <td><span class="badge ${t.status}">${t.status}</span></td>
+            <td>${(t.progress || 0).toFixed(2)}%</td>
+            <td>${t.elapsed ? fmt(t.elapsed) : "—"}</td>
+            <td>${t.remain_seconds ? "≈" + fmt(t.remain_seconds) : "—"}</td>
+            <td>${t.speed_bpm ? t.speed_bpm + " 块/分" : "—"}</td>
+            <td style="${warn ? "color:#b02f1e;font-weight:600" : ""}">${ago}</td>
+            <td class="muted">${t.message || ""}</td>
+          </tr>`;
+        }).join("") + "</table>";
+    }
+  } catch (e) { /* 服务不可达时保持上次内容 */ }
+  setTimeout(poll, 2000);
+}
+poll();
+</script>
+{% endblock %}

@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>任务 {{ t.id }} <span class="badge {{ t.status }}" id="badge">{{ t.status }}</span></h1>
+  <table>
+    <tr><th>文件</th><td>{{ t.filename }}</td></tr>
+    <tr><th>端点/模型</th><td>{{ t.endpoint_name or '—' }} · {{ t.model or '—' }}{% if t.dry_run %} <span class="muted">（管线测试，不调用大模型）</span>{% endif %}</td></tr>
+    <tr><th>页范围</th><td>{{ t.pages_spec or '全本' }}{% if t.pages %}（共 {{ t.pages }} 页）{% endif %}</td></tr>
+  </table>
+  <div class="progressbar"><div id="pbar" style="width: {{ t.progress }}%"></div></div>
+  <div class="muted" id="pstat">{{ t.message or '' }}</div>
+
+  {% if t.pages and t.pages > large_doc_pages %}
+  <div class="warn">ℹ 文档共 {{ t.pages }} 页，较大，翻译可能需要较长时间（视端点速度可能数小时），请耐心等待；可先用「试翻页范围」验证质量。</div>
+  {% endif %}
+
+  {% if t.error %}<div class="warn">错误：{{ t.error }}</div>{% endif %}
+
+  {% if t.status == 'translating' or t.status == 'pending' %}
+  <button class="danger" id="cancelbtn" onclick="cancelTask()">取消任务</button>
+  {% endif %}
+  {% if t.status == 'failed' or t.status == 'cancelled' %}
+  <button onclick="retryTask()">用原参数重新翻译</button>
+  {% endif %}
+
+  {% if t.status == 'done' %}
+      {% if t.usage %}
+    <h2>用量统计</h2>
+    <div class="ok-note">
+      tokens：输入 {{ t.usage.prompt_tokens or 0 }} / 输出 {{ t.usage.completion_tokens or 0 }}
+      / 总计 {{ t.usage.total_tokens or 0 }}（缓存命中 {{ t.usage.cache_hit_prompt_tokens or 0 }}）
+      {% if t.usage.estimated_cost is defined %} · 预估费用 ¥{{ t.usage.estimated_cost }}{% endif %}
+      · 耗时 {{ t.usage.elapsed_seconds }}s
+      {% if t.usage.rate_limit_hits %} · <span style="color:#b02f1e">429 限流 {{ t.usage.rate_limit_hits }} 次</span>{% else %} · 429 限流 0 次{% endif %}
+    </div>
+    {% endif %}
+    <h2>下载</h2>
+    {% if t.dual_path %}<a class="btn" href="/api/tasks/{{ t.id }}/download/dual">双语对照版</a>{% endif %}
+    {% if t.mono_path %}<a class="btn secondary" href="/api/tasks/{{ t.id }}/download/mono">纯译文版</a>{% endif %}
+    {% if t.coverage %}
+    <h2>覆盖度报告</h2>
+      {% set cov = t.coverage %}
+      {% if cov.toc_protected %}
+      <div class="ok-note">📖 目录页保护已启用：第 {{ cov.skipped_toc_pages | join(', ') }} 页
+        {% if cov.toc_translated_entries %}已译为中文目录（双语版右栏对照 + 纯译文版重绘，{{ cov.toc_translated_entries }} 条）{% else %}保留原文{% endif %}</div>
+      {% endif %}
+      {% if cov.toc_validation %}
+      <div class="muted">目录中文覆盖校验：共 {{ cov.toc_validation.total }} 条，合格 {{ cov.toc_validation.translated }}，豁免（型号/缩写/约定不译）{{ cov.toc_validation.exempt }}{% if cov.toc_validation.failed %}，<span style="color:#b02f1e">未通过 {{ cov.toc_validation.failed }}</span>{% endif %}</div>
+      {% endif %}
+      {% if cov.chinese_coverage %}
+      <div class="muted">中文页面覆盖：{{ cov.chinese_coverage.pages_with_chinese }}/{{ cov.chinese_coverage.pages_total }} 页（{{ '%.0f'|format(cov.chinese_coverage.ratio * 100) }}%；试翻部分页时该比例天然偏低）</div>
+      {% endif %}
+      {% if cov.input.warnings.no_text_layer_pages %}
+      <div class="warn">⚠ 疑似无文字层页（未翻译）: {{ cov.input.warnings.no_text_layer_pages | join(', ') }}</div>{% endif %}
+      {% if cov.input.warnings.suspect_garbled_pages %}
+      <div class="warn">⚠ 疑似乱码页（编码异常）: {{ cov.input.warnings.suspect_garbled_pages | join(', ') }}</div>{% endif %}
+      {% if not cov.image_integrity_ok %}
+      <div class="warn">⚠ 图片数量对账异常：输入 {{ cov.input.total_images }} → 输出 {{ cov.output.total_images }}</div>
+      {% else %}
+      <div class="ok-note">图片对账通过（{{ cov.input.total_images }} 张全部保留）；输出页数 {{ cov.output.total_pages }}（输入 {{ cov.input.total_pages }}，{{ '+' if cov.page_growth >= 0 else '' }}{{ cov.page_growth }} 页为双语重排所致）</div>
+      {% endif %}
+    {% endif %}
+  {% endif %}
+</div>
+<script>
+const target = "{{ t.id }}";
+function fmt(s) {
+  s = Math.max(0, Math.round(s));
+  const m = Math.floor(s / 60), r = s % 60;
+  return m > 0 ? `${m}分${String(r).padStart(2, "0")}秒` : `${r}秒`;
+}
+function renderProgress(j) {
+  const p = j.progress || 0;
+  document.getElementById("badge").textContent = j.status;
+  document.getElementById("badge").className = "badge " + j.status;
+  document.getElementById("pbar").style.width = p + "%";
+  let line = `已完成 ${p.toFixed(2)}%`;
+  if (j.elapsed) line += ` · 已用 ${fmt(j.elapsed)}`;
+  if (j.speed_bpm && j.remain_seconds) {
+    line += ` · 速度 ${j.speed_bpm} 块/分 · 当前阶段剩余 ≈${fmt(j.remain_seconds)}`;
+  } else if (p > 3 && p < 100 && j.elapsed) {
+    line += ` · 预计剩余 ≈${fmt(j.elapsed / p * (100 - p))}`;
+  }
+  if (j.last_event_ago != null) {
+    const warn = j.last_event_ago > 60;
+    line += ` · 最后活动 ${fmt(j.last_event_ago)}前${warn ? " ⚠ 超过60秒无活动，可能卡住" : ""}`;
+  }
+  line += "<br>" + (j.message || "");
+  document.getElementById("pstat").innerHTML = line;
+}
+async function poll() {
+  const r = await fetch(`/api/tasks/${target}`);
+  if (!r.ok) return;
+  const j = await r.json();
+  renderProgress(j);
+  if (!["done", "failed", "cancelled"].includes(j.status)) setTimeout(poll, 1500);
+  else setTimeout(() => location.reload(), 800);
+}
+async function cancelTask() {
+  const b = document.getElementById("cancelbtn");
+  if (b) { b.disabled = true; b.textContent = "正在取消…（等引擎检查点，几秒内生效）"; }
+  await fetch(`/api/tasks/${target}/cancel`, { method: "POST" }).catch(() => {});
+}
+async function retryTask() {
+  const r = await fetch(`/api/tasks/${target}/retry`, { method: "POST" });
+  if (r.ok) { const j = await r.json(); location.href = `/tasks/${j.task_id}`; }
+  else alert("重试失败：" + (await r.json()).detail);
+}
+{% if t.status in ('pending', 'translating') %}poll();{% endif %}
+</script>
+{% endblock %}

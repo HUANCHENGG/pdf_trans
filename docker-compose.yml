@@ -1,0 +1,13 @@
+services:
+  pdf-trans:
+    build: .
+    container_name: pdf-trans
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./data:/app/data          # token/任务/术语表/输出 全部持久化
+    environment:
+      - PDFTRANS_TOKEN=${PDFTRANS_TOKEN:-}   # 不设则自动生成（见 data/token.txt）
+      - PDFTRANS_MAX_UPLOAD_MB=200
+      - PDFTRANS_LARGE_DOC_PAGES=500
+    restart: unless-stopped

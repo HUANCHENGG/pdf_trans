@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}PDF 电子手册翻译{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav>
+  <a href="/" class="brand">📖 PDF 手册翻译</a>
+  <a href="/">翻译</a>
+  <a href="/tasks">任务</a>
+  <a href="/status">服务监控</a>
+  <a href="/terms">术语表</a>
+  <a href="/endpoints">API 端点</a>
+</nav>
+<main>
+{% block content %}{% endblock %}
+</main>
+</body>
+</html>

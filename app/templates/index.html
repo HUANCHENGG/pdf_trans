@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>上传 PDF 翻译</h1>
+  {% if not endpoints %}
+  <div class="warn">尚未配置任何 API 端点。可先到 <a href="/endpoints">API 端点</a> 页添加，或勾选下方「管线测试」仅验证解析流程（不调用大模型）。</div>
+  {% endif %}
+  <form id="f" method="post" action="/api/upload" enctype="multipart/form-data">
+    <label>PDF 文件（可多选；单个 ≤200MB，不限页数，大文档翻译耗时较久）</label>
+    <input type="file" name="file" id="fileinput" accept=".pdf" multiple required>
+    <div class="row">
+      <div>
+        <label>翻译端点 / 模型</label>
+        <select name="endpoint_id" id="ep">
+          {% for e in endpoints %}
+          <option value="{{ e.id }}" {{ 'selected' if e.id == default_endpoint else '' }}>
+            {{ e.name }} · {{ e.model }}</option>
+          {% endfor %}
+          {% if not endpoints %}<option value="">（无可用端点）</option>{% endif %}
+        </select>
+      </div>
+      <div>
+        <label>试翻页范围（可选，如 1-5；留空翻译全本）</label>
+        <input type="text" name="pages_spec" placeholder="例如：1-5">
+      </div>
+    </div>
+    <div class="check"><input type="checkbox" name="no_mono" value="true"> 仅输出双语对照版（不生成纯译文版）</div>
+    <div class="check"><input type="checkbox" name="use_glossary" value="true" checked> 启用术语表强制约束</div>
+    <div class="check"><input type="checkbox" name="protect_toc" value="true" checked> 目录页保护（自动识别目录页，按条目翻译为中文并保留原目录格式，推荐）</div>
+    <div class="check"><input type="checkbox" name="dry_run" value="true"> 管线测试（不调用大模型，仅验证解析与版式重建）</div>
+    <button type="submit" id="go">开始翻译</button>
+    <span id="msg" class="muted" style="margin-left:12px"></span>
+  </form>
+</div>
+<div class="card hidden" id="panel">
+  <h2 id="ptitle">任务已提交</h2>
+  <div class="progressbar"><div id="pbar" style="width:0%"></div></div>
+  <div class="muted" id="pstat">排队中…</div>
+</div>
+<script>
+document.getElementById("f").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const files = document.getElementById("fileinput").files;
+  const btn = document.getElementById("go");
+  btn.disabled = true;
+  const msg = document.getElementById("msg");
+  const ids = [];
+  try {
+    for (let k = 0; k < files.length; k++) {
+      msg.textContent = `上传中 ${k + 1}/${files.length}：${files[k].name}`;
+      const fd = new FormData();
+      fd.append("file", files[k]);
+      ["endpoint_id", "pages_spec", "no_mono", "use_glossary", "protect_toc", "dry_run"]
+        .forEach(n => { const el = document.getElementById("f").elements[n]; if (el) {
+          if (el.type === "checkbox") { if (el.checked) fd.append(n, "true"); }
+          else fd.append(n, el.value); } });
+      const r = await fetch("/api/upload", { method: "POST", body: fd });
+      const j = await r.json();
+      if (!r.ok) throw new Error(`${files[k].name}：${j.detail || JSON.stringify(j)}`);
+      ids.push(j.task_id);
+    }
+    location.href = ids.length === 1 ? `/tasks/${ids[0]}` : "/tasks";
+  } catch (e) {
+    msg.textContent = "失败：" + e.message;
+    btn.disabled = false;
+  }
+});
+</script>
+{% endblock %}

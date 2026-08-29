@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>任务列表</h1>
+  {% if not tasks %}<p class="muted">暂无任务，去 <a href="/">翻译</a> 页上传 PDF。</p>{% endif %}
+  <table>
+    <tr><th>ID</th><th>文件</th><th>状态</th><th>进度</th><th>端点/模型</th><th>范围</th><th></th></tr>
+    {% for t in tasks %}
+    <tr>
+      <td><a href="/tasks/{{ t.id }}">{{ t.id }}</a></td>
+      <td>{{ t.filename }}</td>
+      <td><span class="badge {{ t.status }}">{{ t.status }}</span></td>
+      <td>{{ '%.0f'|format(t.progress) }}%</td>
+      <td>{{ t.endpoint_name or '—' }}{% if t.dry_run %} <span class="muted">(管线测试)</span>{% endif %}</td>
+      <td>{{ t.pages_spec or '全本' }}</td>
+      <td><a href="/tasks/{{ t.id }}">详情</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+<script>setTimeout(() => location.reload(), 4000);</script>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>API 端点管理</h1>
+  <p class="muted">支持任意 OpenAI 兼容端点（官方/中转/本地 vLLM·Ollama）。价格填「每百万 tokens / 元」，用于费用估算，可留 0。</p>
+  <form method="post" action="/api/endpoints" id="ef">
+    <input type="hidden" name="id" id="eid">
+    <div class="row">
+      <div><label>名称</label><input type="text" name="name" id="ename" required placeholder="GLM-4.7 官方"></div>
+      <div><label>模型名</label><input type="text" name="model" id="emodel" required placeholder="glm-4-plus"></div>
+    </div>
+    <div class="row">
+      <div><label>Base URL（OpenAI 兼容，含 /v1）</label><input type="text" name="base_url" id="eurl" placeholder="https://api.example.com/v1"></div>
+      <div><label>API Key</label><input type="text" name="api_key" id="ekey" placeholder="sk-..."></div>
+    </div>
+    <div class="row">
+      <div><label>输入价（¥/百万token）</label><input type="number" name="price_in" id="epin" step="0.01" value="0"></div>
+      <div><label>输出价（¥/百万token）</label><input type="number" name="price_out" id="epout" step="0.01" value="0"></div>
+      <div><label>QPS 并发限流（1-30）</label><input type="number" name="qps" id="eqps" min="1" max="30" value="4">
+        <div class="muted" style="margin-top:4px">⚠ 不要超过供应商 RPM 限额（QPS×60）：超限会疯狂触发 429 重试，速度反而暴跌。建议 4-8 起步，跑一单看结果页"429 限流"为 0 再逐步调高。</div>
+      </div>
+    </div>
+    <button type="submit" id="ebtn">保存端点</button>
+    <button type="button" class="secondary" id="tbtn">测试连接</button>
+    <div id="tresult"></div>
+  </form>
+
+  <h2>已配置（{{ endpoints | length }}）</h2>
+  <table>
+    <tr><th>名称</th><th>模型</th><th>Base URL</th><th>价格(入/出)</th><th>QPS</th><th></th></tr>
+    {% for e in endpoints %}
+    <tr>
+      <td>{{ e.name }}{% if e.id == default_endpoint %} <span class="badge done">默认</span>{% endif %}</td>
+      <td><code>{{ e.model }}</code></td>
+      <td class="muted">{{ e.base_url or '（官方默认）' }}</td>
+      <td>{{ e.price_in }} / {{ e.price_out }}</td>
+      <td>{{ e.qps or 4 }}</td>
+      <td>
+        <button class="secondary" style="padding:3px 10px;margin:0" onclick='editEp({{ e | tojson }})'>编辑</button>
+        <button class="secondary" style="padding:3px 10px;margin:0" onclick='testSaved("{{ e.id }}")'>测试</button>
+        <form method="post" action="/api/endpoints/{{ e.id }}/delete" style="display:inline">
+          <button class="danger" style="padding:3px 10px;margin:0">删</button></form>
+      </td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+<script>
+function editEp(e) {
+  document.getElementById("eid").value = e.id;
+  document.getElementById("ename").value = e.name;
+  document.getElementById("emodel").value = e.model;
+  document.getElementById("eurl").value = e.base_url || "";
+  document.getElementById("ekey").value = "";
+  document.getElementById("epin").value = e.price_in ?? 0;
+  document.getElementById("epout").value = e.price_out ?? 0;
+  document.getElementById("eqps").value = e.qps ?? 4;
+  document.getElementById("ebtn").textContent = "更新端点 (key 留空则不变)";
+  window.scrollTo(0, 0);
+}
+document.getElementById("ef").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const r = await fetch("/api/endpoints", { method: "POST", body: new FormData(ev.target) });
+  if (r.ok) location.reload(); else alert("保存失败：" + (await r.json()).detail);
+});
+function showTest(j) {
+  const box = document.getElementById("tresult");
+  if (j.ok) {
+    const u = j.usage && j.usage.total_tokens != null ? ` · tokens ${j.usage.total_tokens}` : "";
+    box.innerHTML = `<div class="ok-note">✅ ${j.category}（${j.latency}s${u}）— ${j.detail}</div>`;
+  } else {
+    box.innerHTML = `<div class="warn">❌ ${j.category} — ${j.detail}</div>`;
+  }
+}
+async function runTest(fd) {
+  document.getElementById("tresult").innerHTML = '<span class="muted">测试中…（最长 25 秒）</span>';
+  try {
+    const r = await fetch("/api/endpoints/test", { method: "POST", body: fd });
+    showTest(await r.json());
+  } catch (e) {
+    showTest({ ok: false, category: "请求失败", detail: e.message });
+  }
+}
+document.getElementById("tbtn").addEventListener("click", () => runTest(new FormData(document.getElementById("ef"))));
+async function testSaved(id) {
+  const fd = new FormData();
+  fd.append("id", id);
+  runTest(fd);
+  window.scrollTo(0, 0);
+}
+</script>
+{% endblock %}

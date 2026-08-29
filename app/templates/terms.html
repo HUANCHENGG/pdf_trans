@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+  <h1>术语表（电子行业）</h1>
+  <p class="muted">术语在每次翻译时强制注入模型约束；自定义词条优先于预置词条。CSV 导出格式与 BabelDOC glossary 兼容。</p>
+  <form method="post" action="/api/terms" id="tf">
+    <div class="row">
+      <div><label>英文原文</label><input type="text" name="source" required placeholder="capacitor"></div>
+      <div><label>指定译文</label><input type="text" name="target" required placeholder="电容"></div>
+      <div><label>分类（可选）</label><input type="text" name="category" placeholder="被动元件"></div>
+    </div>
+    <button type="submit">添加术语</button>
+    <a class="btn secondary" href="/api/terms/export">导出 CSV</a>
+  </form>
+  <h2>词条（{{ terms | length }}）</h2>
+  <table>
+    <tr><th>原文</th><th>译文</th><th>分类</th><th>来源</th><th></th></tr>
+    {% for t in terms %}
+    <tr>
+      <td><code>{{ t.source }}</code></td><td>{{ t.target }}</td><td>{{ t.category or '—' }}</td>
+      <td>{{ '自定义' if t.is_custom else '预置' }}</td>
+      <td><form method="post" action="/api/terms/{{ t.id }}/delete" style="margin:0">
+        <button class="danger" style="padding:3px 10px;margin:0">删</button></form></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+<script>
+document.getElementById("tf").addEventListener("submit", async ev => {
+  ev.preventDefault();
+  const fd = new FormData(ev.target);
+  const r = await fetch("/api/terms", { method: "POST", body: fd });
+  if (r.ok) location.reload(); else alert("添加失败");
+});
+</script>
+{% endblock %}
