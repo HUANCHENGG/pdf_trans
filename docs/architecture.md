@@ -67,7 +67,7 @@ detect_toc_pages → extract_entries（按 y 聚类行 → 节号/标题/页码/
 
 ## 数据模型
 
-- **tasks 表**：id/文件/状态/端点快照/页范围/开关（no_mono/use_glossary/dry_run/protect_toc）/进度/输出路径/coverage(JSON)/usage(JSON)/skipped_pages/时间戳
+- **tasks 表**：id/文件/状态/端点快照/页范围/开关（no_mono/no_dual/use_glossary/dry_run/protect_toc）/进度/输出路径/coverage(JSON)/usage(JSON)/skipped_pages/时间戳
 - **terms 表**：source/target/category/is_custom；UNIQUE(source,is_custom)；优先级 自定义 > 预置；`source==target` 的词条语义为"约定不翻译"
 - **settings.json**：端点档案（name/base_url/model/api_key 明文/价格/qps）+ default_endpoint
 
