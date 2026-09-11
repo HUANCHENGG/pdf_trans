@@ -85,8 +85,6 @@ def service_stats() -> dict:
     return {"uptime": round(time.time() - _started_at, 1),
             "queue_size": queue.qsize(),
             "active_tasks": active}
-    if st.get("start_ts") and st["status"] == "translating":
-        st["elapsed"] = round(time.time() - st["start_ts"], 1)
 
 
 async def start_worker() -> None:
