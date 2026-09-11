@@ -1,0 +1,37 @@
+# 统一换行符策略：仓库内一律存 LF，检出时按平台/类型决定
+# 目的：避免 core.autocrlf 因机器配置不同而导致的整文件 diff
+
+# 默认：自动识别文本文件，检出为 LF
+* text=auto eol=lf
+
+# Windows 批处理脚本：检出为 CRLF（cmd.exe 对 LF 换行在某些场景下不可靠）
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Shell 脚本 / Docker 相关：必须 LF，否则 Linux 上因 \r 执行失败
+*.sh   text eol=lf
+*.bash text eol=lf
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+
+# 明确标注为二进制，禁止任何换行符转换
+*.pdf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.webp binary
+*.ico  binary
+*.woff binary
+*.woff2 binary
+*.ttf  binary
+*.otf  binary
+*.zip  binary
+*.xlsx binary
+*.docx binary
+*.db     binary
+*.sqlite binary
+*.sqlite3 binary
+
+# 这些文件本身不参与换行符规范化
+.gitattributes -text
