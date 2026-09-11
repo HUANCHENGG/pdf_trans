@@ -6,6 +6,7 @@
     <tr><th>文件</th><td>{{ t.filename }}</td></tr>
     <tr><th>端点/模型</th><td>{{ t.endpoint_name or '—' }} · {{ t.model or '—' }}{% if t.dry_run %} <span class="muted">（管线测试，不调用大模型）</span>{% endif %}</td></tr>
     <tr><th>页范围</th><td>{{ t.pages_spec or '全本' }}{% if t.pages %}（共 {{ t.pages }} 页）{% endif %}</td></tr>
+    <tr><th>输出版本</th><td>{% if t.no_dual %}仅纯译文版{% elif t.no_mono %}仅双语对照版{% else %}双语对照版 + 纯译文版{% endif %}</td></tr>
   </table>
   <div class="progressbar"><div id="pbar" style="width: {{ t.progress }}%"></div></div>
   <div class="muted" id="pstat">{{ t.message or '' }}</div>

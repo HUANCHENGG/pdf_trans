@@ -23,8 +23,15 @@
         <label>试翻页范围（可选，如 1-5；留空翻译全本）</label>
         <input type="text" name="pages_spec" placeholder="例如：1-5">
       </div>
+      <div>
+        <label>输出版本</label>
+        <select name="output_mode">
+          <option value="both" selected>双语对照版 + 纯译文版（两者都输出）</option>
+          <option value="mono">仅纯译文版</option>
+          <option value="dual">仅双语对照版</option>
+        </select>
+      </div>
     </div>
-    <div class="check"><input type="checkbox" name="no_mono" value="true"> 仅输出双语对照版（不生成纯译文版）</div>
     <div class="check"><input type="checkbox" name="use_glossary" value="true" checked> 启用术语表强制约束</div>
     <div class="check"><input type="checkbox" name="protect_toc" value="true" checked> 目录页保护（自动识别目录页，按条目翻译为中文并保留原目录格式，推荐）</div>
     <div class="check"><input type="checkbox" name="dry_run" value="true"> 管线测试（不调用大模型，仅验证解析与版式重建）</div>
@@ -50,7 +57,7 @@ document.getElementById("f").addEventListener("submit", async (ev) => {
       msg.textContent = `上传中 ${k + 1}/${files.length}：${files[k].name}`;
       const fd = new FormData();
       fd.append("file", files[k]);
-      ["endpoint_id", "pages_spec", "no_mono", "use_glossary", "protect_toc", "dry_run"]
+      ["endpoint_id", "pages_spec", "output_mode", "use_glossary", "protect_toc", "dry_run"]
         .forEach(n => { const el = document.getElementById("f").elements[n]; if (el) {
           if (el.type === "checkbox") { if (el.checked) fd.append(n, "true"); }
           else fd.append(n, el.value); } });

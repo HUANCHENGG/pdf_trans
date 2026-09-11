@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     model TEXT,
     pages_spec TEXT,
     no_mono INTEGER DEFAULT 0,
+    no_dual INTEGER DEFAULT 0,
     use_glossary INTEGER DEFAULT 1,
     dry_run INTEGER DEFAULT 0,
     progress REAL DEFAULT 0,
@@ -63,6 +64,8 @@ def get_conn() -> sqlite3.Connection:
 
 def _migrate(conn: sqlite3.Connection) -> None:
     cols = {r[1] for r in conn.execute("PRAGMA table_info(tasks)")}
+    if "no_dual" not in cols:
+        conn.execute("ALTER TABLE tasks ADD COLUMN no_dual INTEGER DEFAULT 0")
     if "protect_toc" not in cols:
         conn.execute("ALTER TABLE tasks ADD COLUMN protect_toc INTEGER DEFAULT 1")
     if "skipped_pages" not in cols:
@@ -90,14 +93,15 @@ def execute(sql: str, params: tuple = ()) -> int:
 
 def create_task(filename: str, stored_path: Path, endpoint: dict, pages_spec: str | None,
                 no_mono: bool, use_glossary: bool, dry_run: bool = False,
-                protect_toc: bool = True, pages: int | None = None) -> str:
+                protect_toc: bool = True, pages: int | None = None,
+                no_dual: bool = False) -> str:
     task_id = uuid.uuid4().hex[:12]
     execute(
         "INSERT INTO tasks (id, filename, stored_path, status, endpoint_id, endpoint_name, model,"
-        " pages_spec, no_mono, use_glossary, dry_run, protect_toc, pages, created_at)"
-        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        " pages_spec, no_mono, no_dual, use_glossary, dry_run, protect_toc, pages, created_at)"
+        " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         (task_id, filename, str(stored_path), "pending", endpoint.get("id", ""), endpoint.get("name", ""),
-         endpoint.get("model", ""), pages_spec, int(no_mono), int(use_glossary), int(dry_run),
+         endpoint.get("model", ""), pages_spec, int(no_mono), int(no_dual), int(use_glossary), int(dry_run),
          int(protect_toc), pages, time.time()),
     )
     return task_id

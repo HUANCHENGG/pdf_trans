@@ -266,6 +266,7 @@ async def _run_task(task_id: str) -> None:
         model=(endpoint or {}).get("model", ""),
         pages=pages_str,
         no_mono=bool(task["no_mono"]),
+        no_dual=bool(task["no_dual"]),
         glossary_csv=glossary_csv,
         qps=int((endpoint or {}).get("qps") or config.DEFAULT_QPS),
         dry_run=dry_run,

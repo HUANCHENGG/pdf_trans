@@ -23,13 +23,15 @@ async def upload(
     file: UploadFile = File(...),
     endpoint_id: str = Form(""),
     pages_spec: str = Form(""),
-    no_mono: bool = Form(False),
+    output_mode: str = Form("both"),  # both=双语+纯译文 / mono=仅纯译文 / dual=仅双语
     use_glossary: bool = Form(True),
     dry_run: bool = Form(False),
     protect_toc: bool = Form(True),
 ):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(400, "请上传 PDF 文件")
+    no_mono = output_mode == "dual"   # 不生成纯译文版
+    no_dual = output_mode == "mono"   # 不生成双语对照版
     settings = config.load_settings()
     if endpoint_id:
         endpoint = next((e for e in settings["endpoints"] if e["id"] == endpoint_id), None)
@@ -60,7 +62,7 @@ async def upload(
 
     task_id = db.create_task(
         filename=file.filename, stored_path=stored, endpoint=endpoint or {},
-        pages_spec=pages_spec.strip() or None, no_mono=no_mono,
+        pages_spec=pages_spec.strip() or None, no_mono=no_mono, no_dual=no_dual,
         use_glossary=use_glossary, dry_run=dry_run, protect_toc=protect_toc,
         pages=n_pages,
     )
@@ -118,7 +120,7 @@ async def task_retry(task_id: str):
     endpoint = next((e for e in settings["endpoints"] if e["id"] == t["endpoint_id"]), None)
     new_id = db.create_task(
         filename=t["filename"], stored_path=Path(t["stored_path"]), endpoint=endpoint or {},
-        pages_spec=t["pages_spec"], no_mono=bool(t["no_mono"]),
+        pages_spec=t["pages_spec"], no_mono=bool(t["no_mono"]), no_dual=bool(t["no_dual"]),
         use_glossary=bool(t["use_glossary"]), dry_run=bool(t["dry_run"]),
         protect_toc=bool(t["protect_toc"]), pages=t["pages"],
     )
